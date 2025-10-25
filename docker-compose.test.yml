@@ -2,7 +2,7 @@ version: '3'
 
 services:
   postgres:
-    image: postgres
+    image: postgres:16
     restart: always
     volumes:
       - pgdata_test:/var/lib/postgresql/data
