@@ -1,0 +1,66 @@
+{
+  "name": "@strapi/plugin-audit-logging",
+  "version": "5.10.3",
+  "description": "Automated audit logging for all content changes in Strapi",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "Strapi Solutions SAS",
+    "email": "hi@strapi.io",
+    "url": "https://strapi.io"
+  },
+  "maintainers": [
+    {
+      "name": "Strapi Solutions SAS",
+      "email": "hi@strapi.io",
+      "url": "https://strapi.io"
+    }
+  ],
+  "exports": {
+    "./strapi-server": {
+      "types": "./dist/server/src/index.d.ts",
+      "source": "./server/src/index.ts",
+      "import": "./dist/server/index.mjs",
+      "require": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "pack-up build --minify",
+    "clean": "run -T rimraf dist",
+    "lint": "run -T eslint .",
+    "test:unit": "run -T jest",
+    "watch": "pack-up watch"
+  },
+  "dependencies": {
+    "@strapi/design-system": "2.0.0-rc.30",
+    "@strapi/icons": "2.0.0-rc.30",
+    "@strapi/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@strapi/pack-up": "5.0.2",
+    "@strapi/types": "workspace:*",
+    "@types/lodash": "4.17.13",
+    "lodash": "4.17.21",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.22.3"
+  },
+  "peerDependencies": {
+    "@strapi/strapi": "^5.0.0 || ^5.0.0-beta || ^5.0.0-alpha || ^5.0.0-rc"
+  },
+  "engines": {
+    "node": ">=18.0.0 <=22.x.x",
+    "npm": ">=6.0.0"
+  },
+  "strapi": {
+    "name": "audit-logging",
+    "displayName": "Audit Logging",
+    "description": "Automated audit logging for all content changes",
+    "kind": "plugin",
+    "required": false
+  }
+}

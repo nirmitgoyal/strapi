@@ -1,6 +1,17 @@
 'use strict';
 
 module.exports = () => ({
+  'audit-logging': {
+    // enable/disable audit logging plugin
+    enabled: true,
+    config: {
+      // Optional: Exclude specific content types from audit logging
+      excludeContentTypes: [
+        'api::temp-record.temp-record',
+        'plugin::users-permissions.permission',
+      ],
+    },
+  },
   graphql: {
     enabled: true,
     config: {
