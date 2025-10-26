@@ -135,9 +135,9 @@ Assume node 22 is installed and used
 
 6.  **View Audit Logs via API**:
 
-    You can fetch audit logs via the REST API.
+    You can fetch audit logs via the REST API with support for filtering, pagination, and sorting.
 
-    #### Obtain the JWT token like:
+    #### First Obtain the JWT token:
     ```bash
     JWT=$(curl -s -X POST http://localhost:1337/admin/login \
       -H "Content-Type: application/json" \
@@ -145,7 +145,97 @@ Assume node 22 is installed and used
       | jq -r '.data.token')
     ```
 
-    #### Get all the audit data using the highest level API:
+    #### Get all audit logs:
     ```bash
-    curl -H "Authorization: Bearer $JWT" http://localhost:1337/audit-logging/audit-logs 2>/dev/null | jq '.'
+    curl -H "Authorization: Bearer $JWT" \
+      http://localhost:1337/audit-logging/audit-logs 2>/dev/null | jq '.'
+    ```
+
+    #### Filter by content type:
+    ```bash
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[contentType][\$eq]=api::article.article" \
+      2>/dev/null | jq '.'
+    ```
+
+    #### Filter by user ID:
+    ```bash
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[userId][\$eq]=1" \
+      2>/dev/null | jq '.'
+    ```
+
+    #### Filter by action type:
+    ```bash
+    # Filter for create actions
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[action][\$eq]=create" \
+      2>/dev/null | jq '.'
+    
+    # Filter for update actions
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[action][\$eq]=update" \
+      2>/dev/null | jq '.'
+    
+    # Filter for delete actions
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[action][\$eq]=delete" \
+      2>/dev/null | jq '.'
+    ```
+
+    #### Filter by date range:
+    ```bash
+    # Get logs from a specific date onwards
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[timestamp][\$gte]=2025-01-01T00:00:00.000Z" \
+      2>/dev/null | jq '.'
+    
+    # Get logs within a date range
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[timestamp][\$gte]=2025-01-01T00:00:00.000Z&filters[timestamp][\$lte]=2025-12-31T23:59:59.999Z" \
+      2>/dev/null | jq '.'
+    ```
+
+    #### Pagination:
+    ```bash
+    # Get first page (25 items per page)
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?pagination[page]=1&pagination[pageSize]=25" \
+      2>/dev/null | jq '.'
+    
+    # Get second page
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?pagination[page]=2&pagination[pageSize]=25" \
+      2>/dev/null | jq '.'
+    
+    # Use limit and offset (alternative pagination)
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?pagination[start]=0&pagination[limit]=10" \
+      2>/dev/null | jq '.'
+    ```
+
+    #### Sorting:
+    ```bash
+    # Sort by timestamp (newest first)
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?sort=timestamp:desc" \
+      2>/dev/null | jq '.'
+    
+    # Sort by timestamp (oldest first)
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?sort=timestamp:asc" \
+      2>/dev/null | jq '.'
+    
+    # Sort by multiple fields
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?sort[0]=contentType:asc&sort[1]=timestamp:desc" \
+      2>/dev/null | jq '.'
+    ```
+
+    #### Combined filters example:
+    ```bash
+    # Get all 'update' actions for a specific content type by a specific user, sorted by date
+    curl -H "Authorization: Bearer $JWT" \
+      "http://localhost:1337/audit-logging/audit-logs?filters[contentType][\$eq]=api::article.article&filters[action][\$eq]=update&filters[userId][\$eq]=1&sort=timestamp:desc&pagination[pageSize]=10" \
+      2>/dev/null | jq '.'
     ```
