@@ -61,8 +61,8 @@ This architecture ensures that audit logging is an automated and background proc
 - **Permissions (`./server/src/register.ts`)**: Registers the `plugin::audit-logging.read` permission, allowing Strapi administrators to grant access to the audit logs on a per-role basis.
 
 # How to Use
-
-1.  **Enable the Plugin**:
+Assume node 22 is installed and used
+1.  **Enable the Plugin (enabled by default)**:
     In your `config/plugins.js` file, enable the plugin:
     ```javascript
     module.exports = {
@@ -74,7 +74,23 @@ This architecture ensures that audit logging is an automated and background proc
     };
     ```
 
-2.  **Exclude Content Types (Optional)**:
+2.  **Running with PostgreSQL**:
+
+    By default, Strapi examples use SQLite. To test with PostgreSQL instead:
+
+    1.  **Start the PostgreSQL container** (from the root of the Strapi project):
+        ```bash
+        docker-compose -f docker-compose.dev.yml up postgres -d
+        ```
+        This starts a PostgreSQL container with:
+        - Database: `strapi`
+        - User: `strapi`
+        - Password: `strapi`
+        - Port: `5432`
+
+    2.  **Configure your database connection** in your Strapi app's `config/database.js` to use PostgreSQL instead of SQLite, like: ```  connection: process.env.DB ? db[process.env.DB] || db.postgres : db.postgres,```
+
+3.  **Exclude Content Types (Optional)**:
     To prevent certain content types from being logged, add them to the `excludeContentTypes` array:
     ```javascript
     'audit-logging': {
@@ -87,12 +103,6 @@ This architecture ensures that audit logging is an automated and background proc
       },
     },
     ```
-
-3.  **Set Permissions**:
-    - Go to `Settings` -> `Administration Panel` -> `Roles`.
-    - Select a role (e.g., Editor).
-    - Under the `Plugins` section, find `Audit Logging` and check the `Read` permission.
-    - Save the role. Users with this role will now be able to view the audit logs.
 
 4.  **Running the `getstarted` Example**
 
@@ -117,15 +127,21 @@ This architecture ensures that audit logging is an automated and background proc
         ```
         This will start the Strapi server for the `getstarted` application, with the Audit Logging plugin enabled. You can then perform CRUD operations and see the audit logs being created.
 
-5.  **View Audit Logs via API**:
+5.  **Set Permissions (set by default for super admin)**:
+    - Go to `Settings` -> `Administration Panel` -> `Roles`.
+    - Select a role (e.g., Editor).
+    - Under the `Plugins` section, find `Audit Logging` and check the `Read` permission.
+    - Save the role. Users with this role will now be able to view the audit logs.
+
+6.  **View Audit Logs via API**:
 
     You can fetch audit logs via the REST API.
 
-    #### Obtain the JWT token
+    #### Obtain the JWT token like:
     ```bash
     JWT=$(curl -s -X POST http://localhost:1337/admin/login \
       -H "Content-Type: application/json" \
-      -d '{"email":"admin@gmail.com","password":"Admin123!"}' \
+      -d '{"email":"admin@strapi.io","password":"Admin123!"}' \
       | jq -r '.data.token')
     ```
 

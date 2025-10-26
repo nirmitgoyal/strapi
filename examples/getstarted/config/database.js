@@ -47,5 +47,5 @@ const db = {
 };
 
 module.exports = {
-  connection: process.env.DB ? db[process.env.DB] || db.sqlite : db.sqlite,
+  connection: process.env.DB ? db[process.env.DB] || db.postgres : db.postgres,
 };
