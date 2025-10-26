@@ -60,7 +60,7 @@ This architecture ensures that audit logging is an automated and background proc
 
 - **Permissions (`./server/src/register.ts`)**: Registers the `plugin::audit-logging.read` permission, allowing Strapi administrators to grant access to the audit logs on a per-role basis.
 
-### How to Use
+# How to Use
 
 1.  **Enable the Plugin**:
     In your `config/plugins.js` file, enable the plugin:
