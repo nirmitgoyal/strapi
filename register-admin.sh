@@ -7,12 +7,18 @@ RESPONSE=$(curl -s -X POST "http://localhost:1337/admin/register-admin" \
         "email": "admin@strapi.io",
         "firstname": "Admin",
         "lastname": "User",
-        "password": "Admin123!",
-        "registrationToken": null
+        "password": "Admin123!"
     }')
 
-echo "Registration response:"
-echo $RESPONSE | jq '.'
+# Check if registration failed because admin already exists
+ERROR_MESSAGE=$(echo $RESPONSE | jq -r '.error.message // empty')
+
+if [[ "$ERROR_MESSAGE" == *"cannot register a new super admin"* ]]; then
+    echo "Admin already registered, attempting to login..."
+else
+    echo "Registration response:"
+    echo $RESPONSE | jq '.'
+fi
 
 # Try to login with the credentials
 LOGIN_RESPONSE=$(curl -s -X POST "http://localhost:1337/admin/login" \

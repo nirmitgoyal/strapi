@@ -61,8 +61,8 @@ get_admin_token() {
     RESPONSE=$(curl -s -X POST "${ADMIN_URL}/login" \
         -H "Content-Type: application/json" \
         -d '{
-            "email": "nirmitgoyal.goyal@gmail.com",
-            "password": "Strapi123!"
+            "email": "admin@strapi.io",
+            "password": "Admin123!"
         }')
     
     JWT=$(echo $RESPONSE | jq -r '.data.token // empty')
@@ -84,8 +84,8 @@ check_plugin_loaded() {
     print_header "TEST 1: PLUGIN INITIALIZATION"
     
     # Try to access the audit logs endpoint to check if server is running
-    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:1337/api/audit-logging/audit-logs?pagination%5BpageSize%5D=1" \
-        -H "Authorization: $JWT")
+    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:1337/admin/audit-logs?pagination%5BpageSize%5D=1" \
+        -H "Authorization: Bearer $JWT")
     
     if [ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "401" ] || [ "$RESPONSE" = "403" ]; then
         print_test "Strapi server is running" "PASS"
@@ -97,32 +97,29 @@ check_plugin_loaded() {
 
 # Function to create a test content type entry
 create_article() {
-    RESPONSE=$(curl -s -X POST "${API_URL}/articles" \
+    # Use Content Manager API (admin route) with correct article schema fields
+    RESPONSE=$(curl -s -X POST "${BASE_URL}/admin/content-manager/collection-types/api::article.article" \
         -H "Authorization: Bearer $JWT" \
         -H "Content-Type: application/json" \
         -d '{
-            "data": {
-                "title": "Test Article for Audit Log",
-                "description": "This is a test article",
-                "content": "Test content"
-            }
+            "title": "Test Article for Audit Log",
+            "authorName": "Test Author"
         }')
     
-    ARTICLE_ID=$(echo $RESPONSE | jq -r '.data.id // .data.documentId // empty')
+    # Try to get ID from different possible response structures
+    ARTICLE_ID=$(echo "$RESPONSE" | jq -r '.data.id // .data.documentId // .id // .documentId // empty' 2>/dev/null)
     echo "$ARTICLE_ID"
 }
 
 # Function to update an article
 update_article() {
     ARTICLE_ID=$1
-    RESPONSE=$(curl -s -X PUT "${API_URL}/articles/${ARTICLE_ID}" \
+    RESPONSE=$(curl -s -X PUT "${BASE_URL}/admin/content-manager/collection-types/api::article.article/${ARTICLE_ID}" \
         -H "Authorization: Bearer $JWT" \
         -H "Content-Type: application/json" \
         -d '{
-            "data": {
-                "title": "Updated Test Article",
-                "description": "This is an updated test article"
-            }
+            "title": "Updated Test Article",
+            "authorName": "Updated Author"
         }')
     echo "$RESPONSE"
 }
@@ -130,7 +127,7 @@ update_article() {
 # Function to delete an article
 delete_article() {
     ARTICLE_ID=$1
-    RESPONSE=$(curl -s -X DELETE "${API_URL}/articles/${ARTICLE_ID}" \
+    RESPONSE=$(curl -s -X DELETE "${BASE_URL}/admin/content-manager/collection-types/api::article.article/${ARTICLE_ID}" \
         -H "Authorization: Bearer $JWT")
     echo "$RESPONSE"
 }
@@ -138,8 +135,8 @@ delete_article() {
 # Function to get audit logs
 get_audit_logs() {
     QUERY=$1
-    RESPONSE=$(curl -s "${BASE_URL}/api/audit-logging/audit-logs${QUERY}" \
-        -H "Authorization: Bearer $JWT")
+    RESPONSE=$(timeout 10 curl -s "${BASE_URL}/admin/audit-logs${QUERY}" \
+        -H "Authorization: Bearer $JWT" 2>/dev/null || echo '{"data":[],"meta":{"pagination":{"total":0}}}')
     echo "$RESPONSE"
 }
 
@@ -147,9 +144,30 @@ get_audit_logs() {
 test_automatic_logging() {
     print_header "TEST 2: AUTOMATIC AUDIT LOG CREATION"
     
+    # Refresh token to ensure it's valid
+    echo -e "${YELLOW}Refreshing authentication token...${NC}"
+    RESPONSE=$(curl -s -X POST "${ADMIN_URL}/login" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "email": "admin@strapi.io",
+            "password": "Admin123!"
+        }')
+    
+    JWT=$(echo $RESPONSE | jq -r '.data.token // empty')
+    
+    if [ -z "$JWT" ] || [ "$JWT" = "null" ]; then
+        print_test "Refresh authentication token" "FAIL" "Could not refresh token"
+        return
+    fi
+    
     # Get initial count
     INITIAL_LOGS=$(get_audit_logs "?pagination[pageSize]=1")
-    INITIAL_COUNT=$(echo $INITIAL_LOGS | jq -r '.meta.pagination.total // 0')
+    INITIAL_COUNT=$(echo "$INITIAL_LOGS" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure INITIAL_COUNT is a valid number
+    if ! [[ "$INITIAL_COUNT" =~ ^[0-9]+$ ]]; then
+        INITIAL_COUNT=0
+    fi
     
     echo "Initial audit log count: $INITIAL_COUNT"
     
@@ -167,7 +185,12 @@ test_automatic_logging() {
     
     # Check if audit log was created
     LOGS_AFTER_CREATE=$(get_audit_logs "?pagination[pageSize]=1")
-    COUNT_AFTER_CREATE=$(echo $LOGS_AFTER_CREATE | jq -r '.meta.pagination.total // 0')
+    COUNT_AFTER_CREATE=$(echo "$LOGS_AFTER_CREATE" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure COUNT_AFTER_CREATE is a valid number
+    if ! [[ "$COUNT_AFTER_CREATE" =~ ^[0-9]+$ ]]; then
+        COUNT_AFTER_CREATE=0
+    fi
     
     if [ "$COUNT_AFTER_CREATE" -gt "$INITIAL_COUNT" ]; then
         print_test "Create operation generates audit log" "PASS"
@@ -181,7 +204,12 @@ test_automatic_logging() {
     sleep 1
     
     LOGS_AFTER_UPDATE=$(get_audit_logs "?pagination[pageSize]=1")
-    COUNT_AFTER_UPDATE=$(echo $LOGS_AFTER_UPDATE | jq -r '.meta.pagination.total // 0')
+    COUNT_AFTER_UPDATE=$(echo "$LOGS_AFTER_UPDATE" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure COUNT_AFTER_UPDATE is a valid number
+    if ! [[ "$COUNT_AFTER_UPDATE" =~ ^[0-9]+$ ]]; then
+        COUNT_AFTER_UPDATE=0
+    fi
     
     if [ "$COUNT_AFTER_UPDATE" -gt "$COUNT_AFTER_CREATE" ]; then
         print_test "Update operation generates audit log" "PASS"
@@ -195,7 +223,12 @@ test_automatic_logging() {
     sleep 1
     
     LOGS_AFTER_DELETE=$(get_audit_logs "?pagination[pageSize]=1")
-    COUNT_AFTER_DELETE=$(echo $LOGS_AFTER_DELETE | jq -r '.meta.pagination.total // 0')
+    COUNT_AFTER_DELETE=$(echo "$LOGS_AFTER_DELETE" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure COUNT_AFTER_DELETE is a valid number
+    if ! [[ "$COUNT_AFTER_DELETE" =~ ^[0-9]+$ ]]; then
+        COUNT_AFTER_DELETE=0
+    fi
     
     if [ "$COUNT_AFTER_DELETE" -gt "$COUNT_AFTER_UPDATE" ]; then
         print_test "Delete operation generates audit log" "PASS"
@@ -281,7 +314,12 @@ test_filtering() {
     
     # Test filter by action type
     CREATE_LOGS=$(get_audit_logs "?filters[action][\$eq]=create&pagination[pageSize]=1")
-    CREATE_COUNT=$(echo $CREATE_LOGS | jq -r '.meta.pagination.total // 0')
+    CREATE_COUNT=$(echo "$CREATE_LOGS" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure CREATE_COUNT is a valid number
+    if ! [[ "$CREATE_COUNT" =~ ^[0-9]+$ ]]; then
+        CREATE_COUNT=0
+    fi
     
     if [ "$CREATE_COUNT" -gt 0 ]; then
         FIRST_ACTION=$(echo $CREATE_LOGS | jq -r '.data[0].action // empty')
@@ -296,7 +334,12 @@ test_filtering() {
     
     # Test filter by content type
     ARTICLE_LOGS=$(get_audit_logs "?filters[contentType][\$contains]=article&pagination[pageSize]=1")
-    ARTICLE_COUNT=$(echo $ARTICLE_LOGS | jq -r '.meta.pagination.total // 0')
+    ARTICLE_COUNT=$(echo "$ARTICLE_LOGS" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure ARTICLE_COUNT is a valid number
+    if ! [[ "$ARTICLE_COUNT" =~ ^[0-9]+$ ]]; then
+        ARTICLE_COUNT=0
+    fi
     
     if [ "$ARTICLE_COUNT" -gt 0 ]; then
         FIRST_CONTENT_TYPE=$(echo $ARTICLE_LOGS | jq -r '.data[0].contentType // empty')
@@ -312,7 +355,12 @@ test_filtering() {
     # Test date range filter
     TODAY=$(date -u +"%Y-%m-%d")
     DATE_LOGS=$(get_audit_logs "?filters[timestamp][\$gte]=${TODAY}&pagination[pageSize]=1")
-    DATE_COUNT=$(echo $DATE_LOGS | jq -r '.meta.pagination.total // 0')
+    DATE_COUNT=$(echo "$DATE_LOGS" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure DATE_COUNT is a valid number
+    if ! [[ "$DATE_COUNT" =~ ^[0-9]+$ ]]; then
+        DATE_COUNT=0
+    fi
     
     if [ "$DATE_COUNT" -gt 0 ]; then
         print_test "Filter by date range" "PASS"
@@ -327,7 +375,12 @@ test_pagination_sorting() {
     
     # Test pagination
     PAGE1=$(get_audit_logs "?pagination[page]=1&pagination[pageSize]=2")
-    PAGE1_COUNT=$(echo $PAGE1 | jq -r '.data | length')
+    PAGE1_COUNT=$(echo "$PAGE1" | jq -r '.data | length' 2>/dev/null || echo "0")
+    
+    # Ensure PAGE1_COUNT is a valid number
+    if ! [[ "$PAGE1_COUNT" =~ ^[0-9]+$ ]]; then
+        PAGE1_COUNT=0
+    fi
     
     if [ "$PAGE1_COUNT" -gt 0 ]; then
         print_test "Pagination works (page 1)" "PASS"
@@ -351,9 +404,14 @@ test_pagination_sorting() {
     fi
     
     # Check pagination metadata
-    TOTAL=$(echo $PAGE1 | jq -r '.meta.pagination.total // 0')
-    PAGE=$(echo $PAGE1 | jq -r '.meta.pagination.page // 0')
-    PAGE_SIZE=$(echo $PAGE1 | jq -r '.meta.pagination.pageSize // 0')
+    TOTAL=$(echo "$PAGE1" | jq -r '.meta.pagination.total // 0' 2>/dev/null || echo "0")
+    PAGE=$(echo "$PAGE1" | jq -r '.meta.pagination.page // 0' 2>/dev/null || echo "0")
+    PAGE_SIZE=$(echo "$PAGE1" | jq -r '.meta.pagination.pageSize // 0' 2>/dev/null || echo "0")
+    
+    # Ensure values are valid numbers
+    if ! [[ "$TOTAL" =~ ^[0-9]+$ ]]; then TOTAL=0; fi
+    if ! [[ "$PAGE" =~ ^[0-9]+$ ]]; then PAGE=0; fi
+    if ! [[ "$PAGE_SIZE" =~ ^[0-9]+$ ]]; then PAGE_SIZE=0; fi
     
     if [ "$TOTAL" -gt 0 ] && [ "$PAGE" -eq 1 ] && [ "$PAGE_SIZE" -eq 2 ]; then
         print_test "Pagination metadata correct" "PASS"
@@ -375,7 +433,7 @@ test_access_control() {
     fi
     
     # Test without JWT (should fail)
-    WITHOUT_AUTH=$(curl -s "${BASE_URL}/api/audit-logging/audit-logs?pagination[pageSize]=1")
+    WITHOUT_AUTH=$(curl -s "${BASE_URL}/admin/audit-logs?pagination[pageSize]=1")
     if echo "$WITHOUT_AUTH" | jq -e '.error' > /dev/null 2>&1; then
         print_test "Access denied without JWT token" "PASS"
     else
@@ -389,7 +447,12 @@ test_database_storage() {
     
     # Check that logs are persisted
     ALL_LOGS=$(get_audit_logs "")
-    TOTAL_LOGS=$(echo $ALL_LOGS | jq -r '.meta.pagination.total // 0')
+    TOTAL_LOGS=$(echo "$ALL_LOGS" | jq -r '.meta.pagination.total // .results // 0' 2>/dev/null || echo "0")
+    
+    # Ensure TOTAL_LOGS is a valid number
+    if ! [[ "$TOTAL_LOGS" =~ ^[0-9]+$ ]]; then
+        TOTAL_LOGS=0
+    fi
     
     if [ "$TOTAL_LOGS" -gt 0 ]; then
         print_test "Audit logs persisted in database" "PASS"

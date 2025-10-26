@@ -1,40 +1,33 @@
 #!/bin/bash
 
 # Try to login with the existing admin user
-echo "Attempting to login with existing admin..."
+echo "Attempting to login with admin user..."
 
-# Try common passwords
-PASSWORDS=("Strapi123!" "Admin123!" "admin123" "strapi123" "Test123!" "test123")
+LOGIN_RESPONSE=$(curl -s -X POST "http://localhost:1337/admin/login" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "email": "admin@strapi.io",
+        "password": "Admin123!"
+    }')
 
-for PASSWORD in "${PASSWORDS[@]}"; do
-    echo "Trying password: $PASSWORD"
-    LOGIN_RESPONSE=$(curl -s -X POST "http://localhost:1337/admin/login" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"email\": \"nirmitgoyal.goyal@gmail.com\",
-            \"password\": \"$PASSWORD\"
-        }")
-    
-    JWT=$(echo $LOGIN_RESPONSE | jq -r '.data.token // empty')
-    
-    if [ ! -z "$JWT" ] && [ "$JWT" != "null" ]; then
-        echo ""
-        echo "✓ Successfully logged in with password: $PASSWORD"
-        echo "JWT Token obtained"
-        echo ""
-        echo "Export this token:"
-        echo "export JWT='$JWT'"
-        echo ""
-        echo "export ADMIN_EMAIL='nirmitgoyal.goyal@gmail.com'"
-        echo "export ADMIN_PASSWORD='$PASSWORD'"
-        exit 0
-    fi
-done
+JWT=$(echo $LOGIN_RESPONSE | jq -r '.data.token // empty')
 
-echo ""
-echo "Could not login with any common passwords."
-echo "Please provide the password for nirmitgoyal.goyal@gmail.com"
-echo ""
-echo "You can run tests manually with:"
-echo "export JWT='<your_jwt_token>'"
-echo "./test-audit-logging.sh"
+if [ ! -z "$JWT" ] && [ "$JWT" != "null" ]; then
+    echo ""
+    echo "✓ Successfully logged in!"
+    echo "JWT Token obtained"
+    echo ""
+    echo "Export this token:"
+    echo "export JWT='$JWT'"
+    echo ""
+    echo "You can now run tests with:"
+    echo "./test-audit-logging.sh"
+else
+    echo ""
+    echo "❌ Login failed."
+    echo "Response:"
+    echo $LOGIN_RESPONSE | jq '.'
+    echo ""
+    echo "Make sure you've registered the admin user first:"
+    echo "./register-admin.sh"
+fi

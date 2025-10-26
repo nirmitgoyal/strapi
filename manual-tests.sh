@@ -1,11 +1,19 @@
 #!/bin/bash
 
 # Manual tests for audit logging feature
-# Run this script after setting: export TOKEN="Bearer YOUR_API_TOKEN"
+# Run this script after setting: export JWT="YOUR_JWT_TOKEN"
+# Or the run-all-audit-tests.sh script will set it automatically
 
-set -e
+# Use JWT from environment if available, otherwise use TOKEN if set
+if [ ! -z "$JWT" ]; then
+    TOKEN="Bearer $JWT"
+elif [ -z "$TOKEN" ]; then
+    echo "Error: No authentication token found"
+    echo "Please set JWT environment variable:"
+    echo "  export JWT='your_jwt_token'"
+    exit 1
+fi
 
-TOKEN="Bearer 2a595541eadc9e3036251c537aa42b5a310a18b4075df1fa7d657899b01822bc1be0760600abd73d40bcbc98042dd9be4a254b95d9f01f56f3dc42e8b39b9a25"
 BASE_URL="http://localhost:1337"
 
 echo "=== TEST 1: Check server is running ==="

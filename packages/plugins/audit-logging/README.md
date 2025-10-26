@@ -125,7 +125,7 @@ This architecture ensures that audit logging is an automated and background proc
     ```bash
     JWT=$(curl -s -X POST http://localhost:1337/admin/login \
       -H "Content-Type: application/json" \
-      -d '{"email":"nirmitgoyal.goyal@gmail.com","password":"PassworD@1"}' \
+      -d '{"email":"admin@gmail.com","password":"Admin123!"}' \
       | jq -r '.data.token')
     ```
 
