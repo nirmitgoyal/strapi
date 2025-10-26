@@ -1,6 +1,8 @@
 import type { Core } from '@strapi/types';
 import type { Event } from '@strapi/database/dist/lifecycles';
 
+import { getPluginConfig } from '../utils/config';
+
 /**
  * Calculate changes between old and new data for update operations
  */
@@ -39,22 +41,14 @@ const getUserId = (strapi: Core.Strapi): number | undefined => {
  * Skip internal Strapi content types and the audit log itself
  */
 const shouldAuditContentType = (uid: string, strapi: Core.Strapi): boolean => {
-  // Get plugin configuration
-  const pluginConfig = strapi.config.get('plugin::audit-logging') as {
-    enabled?: boolean;
-    config?: {
-      excludeContentTypes?: string[];
-    };
-  };
+  const { enabled, excludeContentTypes } = getPluginConfig(strapi);
 
-  // Check if logging is globally enabled (default: true)
-  if (pluginConfig?.enabled === false) {
+  if (!enabled) {
     return false;
   }
 
   // Check if content type is in the exclusion list
-  const excludeList = pluginConfig?.config?.excludeContentTypes || [];
-  if (excludeList.includes(uid)) {
+  if (excludeContentTypes.includes(uid)) {
     return false;
   }
 

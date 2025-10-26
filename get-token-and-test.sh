@@ -5,11 +5,13 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "🔑 Getting JWT token..."
 echo ""
 
-# Run the Node.js script to get token
-TOKEN_OUTPUT=$(node get-jwt-token.js)
+# Run the helper script to get token
+TOKEN_OUTPUT=$("$SCRIPT_DIR/get-token.sh")
 
 # Extract just the token (the export line)
 JWT_TOKEN=$(echo "$TOKEN_OUTPUT" | grep "^export JWT=" | sed "s/export JWT='//g" | sed "s/'//g")

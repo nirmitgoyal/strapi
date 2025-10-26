@@ -35,19 +35,9 @@
     "test:unit": "run -T jest",
     "watch": "pack-up watch"
   },
-  "dependencies": {
-    "@strapi/design-system": "2.0.0-rc.30",
-    "@strapi/icons": "2.0.0-rc.30",
-    "@strapi/utils": "workspace:*"
-  },
   "devDependencies": {
     "@strapi/pack-up": "5.0.2",
-    "@strapi/types": "workspace:*",
-    "@types/lodash": "4.17.13",
-    "lodash": "4.17.21",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.22.3"
+    "@strapi/types": "workspace:*"
   },
   "peerDependencies": {
     "@strapi/strapi": "^5.0.0 || ^5.0.0-beta || ^5.0.0-alpha || ^5.0.0-rc"

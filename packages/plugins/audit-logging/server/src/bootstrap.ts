@@ -1,23 +1,15 @@
 import type { Core } from '@strapi/types';
 import { createLifecycleSubscriber } from './services/lifecycle';
+import { getPluginConfig } from './utils/config';
 
 /**
  * Bootstrap function called when the plugin is loaded
  * Registers database lifecycle hooks to capture content changes
  */
 export default ({ strapi }: { strapi: Core.Strapi }) => {
-  // Get plugin configuration
-  const pluginConfig = strapi.config.get('plugin::audit-logging') as {
-    enabled?: boolean;
-    config?: {
-      excludeContentTypes?: string[];
-    };
-  };
+  const { enabled, excludeContentTypes } = getPluginConfig(strapi);
 
-  // Check if audit logging is enabled (default: true if not explicitly set to false)
-  const isEnabled = pluginConfig?.enabled !== false;
-
-  if (!isEnabled) {
+  if (!enabled) {
     strapi.log.info('Audit Logging plugin: Disabled by configuration');
     return;
   }
@@ -27,10 +19,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
   strapi.db.lifecycles.subscribe(subscriber);
 
   // Log configuration info
-  const excludeList = pluginConfig?.config?.excludeContentTypes || [];
-  if (excludeList.length > 0) {
+  if (excludeContentTypes.length > 0) {
     strapi.log.info(
-      `Audit Logging plugin: Lifecycle hooks registered. Excluded content types: ${excludeList.join(', ')}`
+      `Audit Logging plugin: Lifecycle hooks registered. Excluded content types: ${excludeContentTypes.join(', ')}`
     );
   } else {
     strapi.log.info('Audit Logging plugin: Lifecycle hooks registered successfully');

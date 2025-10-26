@@ -11,6 +11,33 @@ NC='\033[0m' # No Color
 BASE_URL="http://localhost:1337"
 API_URL="${BASE_URL}/api"
 ADMIN_URL="${BASE_URL}/admin"
+AUDIT_LOG_BASE="${BASE_URL}/audit-logging/audit-logs"
+
+AUTH_HEADER=""
+
+normalize_token() {
+    local token="$1"
+    token="${token#Bearer }"
+    token="${token#bearer }"
+    token="$(printf '%s' "$token" | tr -d '\r' | xargs)"
+    echo "$token"
+}
+
+set_auth_header() {
+    local raw_token="$1"
+    local normalized
+    normalized=$(normalize_token "$raw_token")
+
+    if [ -z "$normalized" ]; then
+        AUTH_HEADER=""
+        JWT=""
+        return 1
+    fi
+
+    JWT="$normalized"
+    AUTH_HEADER="Authorization: Bearer $normalized"
+    return 0
+}
 
 # Test counter
 TOTAL_TESTS=0
@@ -46,15 +73,19 @@ get_admin_token() {
     
     # First, try using API token from environment
     if [ ! -z "$API_TOKEN" ]; then
-        JWT="$API_TOKEN"
-        echo -e "${GREEN}Using API token from environment${NC}"
-        return 0
+        if set_auth_header "$API_TOKEN"; then
+            echo -e "${GREEN}Using API token from environment${NC}"
+            return 0
+        fi
     fi
     
     # Try to use JWT from environment
     if [ ! -z "$JWT" ]; then
-        echo -e "${GREEN}Using JWT token from environment${NC}"
-        return 0
+        local existing_token="$JWT"
+        if set_auth_header "$existing_token"; then
+            echo -e "${GREEN}Using JWT token from environment${NC}"
+            return 0
+        fi
     fi
     
     # Try to login with default admin credentials
@@ -65,9 +96,10 @@ get_admin_token() {
             "password": "Admin123!"
         }')
     
-    JWT=$(echo $RESPONSE | jq -r '.data.token // empty')
+    local token
+    token=$(echo "$RESPONSE" | jq -r '.data.token // empty')
     
-    if [ -z "$JWT" ] || [ "$JWT" = "null" ]; then
+    if [ -z "$token" ] || [ "$token" = "null" ]; then
         echo -e "${RED}Failed to get JWT token.${NC}"
         echo -e "${YELLOW}Please set JWT or API_TOKEN environment variable:${NC}"
         echo -e "${YELLOW}  export JWT='your_jwt_token'${NC}"
@@ -76,6 +108,7 @@ get_admin_token() {
         exit 1
     fi
     
+    set_auth_header "$token"
     echo -e "${GREEN}Successfully obtained JWT token${NC}"
 }
 
@@ -84,8 +117,12 @@ check_plugin_loaded() {
     print_header "TEST 1: PLUGIN INITIALIZATION"
     
     # Try to access the audit logs endpoint to check if server is running
-    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:1337/admin/audit-logs?pagination%5BpageSize%5D=1" \
-        -H "Authorization: Bearer $JWT")
+    local curl_args=(-s -o /dev/null -w "%{http_code}" "${AUDIT_LOG_BASE}?pagination%5BpageSize%5D=1")
+    if [ -n "$AUTH_HEADER" ]; then
+        curl_args+=(-H "$AUTH_HEADER")
+    fi
+
+    RESPONSE=$(curl "${curl_args[@]}")
     
     if [ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "401" ] || [ "$RESPONSE" = "403" ]; then
         print_test "Strapi server is running" "PASS"
@@ -99,7 +136,7 @@ check_plugin_loaded() {
 create_article() {
     # Use Content Manager API (admin route) with correct article schema fields
     RESPONSE=$(curl -s -X POST "${BASE_URL}/admin/content-manager/collection-types/api::article.article" \
-        -H "Authorization: Bearer $JWT" \
+        -H "$AUTH_HEADER" \
         -H "Content-Type: application/json" \
         -d '{
             "title": "Test Article for Audit Log",
@@ -115,7 +152,7 @@ create_article() {
 update_article() {
     ARTICLE_ID=$1
     RESPONSE=$(curl -s -X PUT "${BASE_URL}/admin/content-manager/collection-types/api::article.article/${ARTICLE_ID}" \
-        -H "Authorization: Bearer $JWT" \
+        -H "$AUTH_HEADER" \
         -H "Content-Type: application/json" \
         -d '{
             "title": "Updated Test Article",
@@ -128,15 +165,19 @@ update_article() {
 delete_article() {
     ARTICLE_ID=$1
     RESPONSE=$(curl -s -X DELETE "${BASE_URL}/admin/content-manager/collection-types/api::article.article/${ARTICLE_ID}" \
-        -H "Authorization: Bearer $JWT")
+        -H "$AUTH_HEADER")
     echo "$RESPONSE"
 }
 
 # Function to get audit logs
 get_audit_logs() {
     QUERY=$1
-    RESPONSE=$(timeout 10 curl -s "${BASE_URL}/admin/audit-logs${QUERY}" \
-        -H "Authorization: Bearer $JWT" 2>/dev/null || echo '{"data":[],"meta":{"pagination":{"total":0}}}')
+    local url="${AUDIT_LOG_BASE}${QUERY}"
+    local curl_cmd=(curl -s "$url")
+    if [ -n "$AUTH_HEADER" ]; then
+        curl_cmd+=(-H "$AUTH_HEADER")
+    fi
+    RESPONSE=$(timeout 10 "${curl_cmd[@]}" 2>/dev/null || echo '{"data":[],"meta":{"pagination":{"total":0}}}')
     echo "$RESPONSE"
 }
 
@@ -153,12 +194,15 @@ test_automatic_logging() {
             "password": "Admin123!"
         }')
     
-    JWT=$(echo $RESPONSE | jq -r '.data.token // empty')
+    local refreshed_token
+    refreshed_token=$(echo "$RESPONSE" | jq -r '.data.token // empty')
     
-    if [ -z "$JWT" ] || [ "$JWT" = "null" ]; then
+    if [ -z "$refreshed_token" ] || [ "$refreshed_token" = "null" ]; then
         print_test "Refresh authentication token" "FAIL" "Could not refresh token"
         return
     fi
+    
+    set_auth_header "$refreshed_token"
     
     # Get initial count
     INITIAL_LOGS=$(get_audit_logs "?pagination[pageSize]=1")
@@ -433,7 +477,7 @@ test_access_control() {
     fi
     
     # Test without JWT (should fail)
-    WITHOUT_AUTH=$(curl -s "${BASE_URL}/admin/audit-logs?pagination[pageSize]=1")
+    WITHOUT_AUTH=$(curl -s "${AUDIT_LOG_BASE}?pagination[pageSize]=1")
     if echo "$WITHOUT_AUTH" | jq -e '.error' > /dev/null 2>&1; then
         print_test "Access denied without JWT token" "PASS"
     else
